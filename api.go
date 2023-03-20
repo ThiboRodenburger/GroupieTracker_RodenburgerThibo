@@ -1,86 +1,76 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/gin-gonic/gin"
-	"google.golang.org/api/option"
+	"google.golang.org/api/googleapi/transport"
 	"google.golang.org/api/youtube/v3"
 )
 
-// Define the data structure for a YouTube video
-type Video struct {
-	Title string
-	Url   string
-}
+var videoID string
 
 func main() {
-	apiKey := os.Getenv("YOUTUBE_API_KEY")
-	if apiKey == "AIzaSyDvH8v227tyToFWyDGnJwqj--Od5LMY2BM" {
-		log.Fatal("YOUTUBE_API_KEY environment variable is required")
+	http.HandleFunc("/", homePage)
+	http.HandleFunc("/video", playVideo)
+	http.HandleFunc("/search", searchVideos)
+	http.HandleFunc("/select", selectVideo)
+	http.HandleFunc("/favicon.ico", faviconHandler)
+	fmt.Println("Server is running on port 8080...")
+	http.ListenAndServe(":8080", nil)
+}
+
+func homePage(w http.ResponseWriter, r *http.Request) {
+	tmpl := template.Must(template.ParseFiles("C:/Users/roden/OneDrive/Documents/coursb1/Groupie_Tracker/projet api/templates/Index.html/templates/Index.html"))
+	tmpl.Execute(w, nil)
+}
+
+func playVideo(w http.ResponseWriter, r *http.Request) {
+	videoURL := "https://www.youtube.com/embed/" + videoID
+	http.Redirect(w, r, videoURL, http.StatusSeeOther)
+}
+
+func searchVideos(w http.ResponseWriter, r *http.Request) {
+	query := r.FormValue("q")
+	if query == "" {
+		http.Error(w, "Please specify a search query", http.StatusBadRequest)
+		return
 	}
 
-	// Create a new gin engine
-	r := gin.Default()
-
-	// Define the route for the home page
-	r.GET("/", func(c *gin.Context) {
-		// Load the HTML template
-		tmpl := template.Must(template.ParseFiles("Index.html"))
-
-		// Display the HTML template
-		if err := tmpl.Execute(c.Writer, nil); err != nil {
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
+	youtubeService, err := youtube.New(&http.Client{
+		Transport: &transport.APIKey{Key: "AIzaSyDCRxQxNNwJRt4JhHjd4EyxNaKHoKZIpsY"},
 	})
+	if err != nil {
+		log.Fatalf("Failed to create YouTube service: %v", err)
+	}
 
-	// Define the route for the search API
-	r.GET("/search", func(c *gin.Context) {
-		// Get the search query from the query string
-		query := c.Query("q")
+	searchCall := youtubeService.Search.List([]string{"id", "snippet"}).Q(query).MaxResults(10)
 
-		// Create a new YouTube service with the API key
-		ctx := context.Background()
-		youtubeService, err := youtube.NewService(ctx, option.WithAPIKey(apiKey))
-		if err != nil {
-			log.Fatalf("Failed to create YouTube service: %v", err)
+	searchResponse, err := searchCall.Do()
+	if err != nil {
+		log.Fatalf("Failed to search for videos: %v", err)
+	}
+
+	videoList := make(map[string]string)
+
+	for _, item := range searchResponse.Items {
+		switch item.Id.Kind {
+		case "youtube#video":
+			videoList[item.Id.VideoId] = item.Snippet.Title
 		}
+	}
 
-		// Define the API request to search for videos
-		searchCall := youtubeService.Search.List([]string{"id", "snippet"}).Q(query).MaxResults(10)
+	tmpl := template.Must(template.ParseFiles("search.html"))
+	tmpl.Execute(w, videoList)
+}
 
-		// Execute the API request
-		searchResponse, err := searchCall.Do()
-		if err != nil {
-			log.Fatalf("Failed to search for videos: %v", err)
-		}
+func selectVideo(w http.ResponseWriter, r *http.Request) {
+	videoID = r.FormValue("videoID")
+	http.Redirect(w, r, "/video", http.StatusSeeOther)
+}
 
-		// Extract the videos from the API response
-		videos := make([]Video, 0, len(searchResponse.Items))
-		for _, searchResult := range searchResponse.Items {
-			if searchResult.Id.Kind == "youtube#video" {
-				video := Video{
-					Title: searchResult.Snippet.Title,
-					Url:   fmt.Sprintf("https://www.youtube.com/watch?v=%v", searchResult.Id.VideoId),
-				}
-				videos = append(videos, video)
-			}
-		}
-
-		// Render the video results in the search template
-		tmpl := template.Must(template.ParseFiles("search.html"))
-		if err := tmpl.Execute(c.Writer, videos); err != nil {
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-	})
-
-	// Run the gin engine on port 8080
-	r.Run(":8080")
+func faviconHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "favicon.ico")
 }
