@@ -13,6 +13,8 @@ import (
 var videoID string
 
 func main() {
+	css := http.FileServer(http.Dir("css"))
+	http.Handle("/css/", http.StripPrefix("/css/", css))
 	http.HandleFunc("/", homePage)
 	http.HandleFunc("/video", playVideo)
 	http.HandleFunc("/search", searchVideos)
@@ -23,7 +25,7 @@ func main() {
 }
 
 func homePage(w http.ResponseWriter, r *http.Request) {
-	tmpl := template.Must(template.ParseFiles("C:/Users/roden/OneDrive/Documents/coursb1/Groupie_Tracker/projet api/templates/Index.html/templates/Index.html"))
+	tmpl := template.Must(template.ParseFiles("C:/Users/roden/OneDrive/Documents/coursb1/Groupie_Tracker/projet api/templates/Index.html"))
 	tmpl.Execute(w, nil)
 }
 
