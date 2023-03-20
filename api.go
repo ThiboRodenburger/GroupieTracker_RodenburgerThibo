@@ -29,8 +29,31 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, nil)
 }
 
+func getVideo(videoID string) (*youtube.Video, error) {
+	youtubeService, err := youtube.New(&http.Client{
+		Transport: &transport.APIKey{Key: "AIzaSyDCRxQxNNwJRt4JhHjd4EyxNaKHoKZIpsY"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	videoCall := youtubeService.Videos.List([]string{"snippet"}).Id(videoID)
+	videoResponse, err := videoCall.Do()
+	if err != nil {
+		return nil, err
+	}
+	if len(videoResponse.Items) == 0 {
+		return nil, fmt.Errorf("No video found with ID %s", videoID)
+	}
+	return videoResponse.Items[0], nil
+}
+
 func playVideo(w http.ResponseWriter, r *http.Request) {
-	videoURL := "https://www.youtube.com/embed/" + videoID
+	video, err := getVideo(videoID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	videoURL := fmt.Sprintf("https://www.youtube.com/embed/%s", video.Id)
 	http.Redirect(w, r, videoURL, http.StatusSeeOther)
 }
 
@@ -64,7 +87,7 @@ func searchVideos(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tmpl := template.Must(template.ParseFiles("search.html"))
+	tmpl := template.Must(template.ParseFiles("C:/Users/roden/OneDrive/Documents/coursb1/Groupie_Tracker/projet api/templates/search.html"))
 	tmpl.Execute(w, videoList)
 }
 
