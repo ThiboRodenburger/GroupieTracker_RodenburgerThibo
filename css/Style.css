@@ -77,6 +77,10 @@ nav ul li a:hover {
   background-color: #e60000;
 }
 
+.video{
+  padding:90px;
+}
+
 @media only screen and (max-width: 768px) {
 
   nav {
